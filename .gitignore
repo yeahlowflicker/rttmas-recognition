@@ -1,0 +1,7 @@
+__pycache__/
+venv/
+
+/src/static
+/src/tmp
+/src/weights
+*.pt

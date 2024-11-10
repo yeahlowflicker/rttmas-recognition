@@ -1,0 +1,203 @@
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="utf-8">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="viewport" content="width=device-width, initial-scale=0.3">
+        <title>TEST</title>
+
+        <script src="https://cdn.tailwindcss.com"></script>
+        
+        <style media="screen">
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                width: 100vw;
+                height: 100vh;
+                margin: 0;
+                padding: 5vh;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                font-size: 18px;
+            }
+
+            #btn-upload {
+                width: 30vh;
+                height: 30vh;
+                margin-top: 5vh;
+                border-radius: 20px;
+                outline: none;
+                border: 1px solid rgba(0, 0, 0, .3);
+                font-size: 1.5em;
+                font-weight: bold;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body class="flex m-0 p-0 bg-black w-screen">
+        <canvas id="canvas" class="w-[1920px] h-[1200px]" style="display: none;"></canvas>
+
+        <video id="video" class="object-cover w-[1920px] h-[1200px] fixed top-0 inset-x-0 mx-auto z-0" autoplay></video>
+
+        <canvas id="result-canvas" class="w-[1920px] h-[1200px] fixed top-0 inset-x-0 mx-auto z-1 object-cover"></canvas>
+
+        <!-- <img id="capturedImage" width="100%" height="auto" alt="Captured Image" style="display: none;"> -->
+
+    </body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+    <script type="text/javascript" charset="utf-8">
+
+        CAPTURE_INTERVAL_MS = 2000
+
+        const canvasRoot = document.getElementById("canvas")
+        const canvas = canvasRoot.getContext("2d")
+        canvasRoot.width = 1920;
+        canvasRoot.height = 1200;
+
+        // const canvas = document.getElementById("canvas").getContext("2d")
+
+        var socket = io();
+
+
+        socket.on("danger-alert", (data) => {
+            paraNews.innerText += `附近有危險記錄車輛： ${data.plate} (${data.lat}, ${data.lon})\n`
+        });
+
+        socket.on("accident", (data) => {
+            paraNews.innerText += `前方有車禍發生，請小心駕駛。\n`
+        });
+
+
+        var imgDataQueue = []
+        const resultCanvasRoot = document.getElementById("result-canvas")
+        const resultCanvas = resultCanvasRoot.getContext("2d")
+        resultCanvasRoot.width = 1920;
+        resultCanvasRoot.height = 1200;
+
+        socket.on("recognition-complete", (payload) => {
+            // console.log("RECV")
+
+            // var img = new Image()
+
+            // img.onload = function() {
+            //     canvas.clearRect(0, 0, 1200, 600)
+            //     canvas.drawImage(this, 0, 0, 1200, 600)
+            // }
+
+            // img.src = imgData
+            // console.log(imgData)
+
+            // const imgData = `data:image/png;base64,${data}`
+
+            // capturedImage.src = imgData;
+            // capturedImage.style.display = 'block';
+            // console.log(data)
+
+
+            resultCanvas.clearRect(0, 0, 1920, 1200)
+
+            // imgDataQueue.forEach(item => {
+            //     if (item[0] == payload['seq_number'])
+            //         resultCanvas.putImageData(imgData, 0, 0);  
+            // })
+
+            // const imgData = imgDataQueue[0]
+            // imgDataQueue.shift()
+
+            payload['results'].forEach(data => {
+                const trackId = data["track_id"]
+                const carBox = data["car_box"]
+                const plateNo = data["plate_no"]
+                
+                resultCanvas.beginPath();
+                resultCanvas.lineWidth = "5";
+                resultCanvas.strokeStyle = "#00ff00";
+                resultCanvas.rect(carBox[0], carBox[1], carBox[2]-carBox[0], carBox[3]-carBox[1])
+                resultCanvas.closePath();
+                resultCanvas.stroke();
+
+                
+                resultCanvas.fillStyle = "#04b8f4";
+                resultCanvas.font = "bold 48px Arial";
+                resultCanvas.textAlign = 'left';
+                resultCanvas.textBaseline = 'middle';
+                resultCanvas.fillText(`${trackId}  ${plateNo}`, carBox[0] - 20, carBox[3] - 20);
+
+
+                // if ("plate_box" in data) {
+                try {
+                    const plateBox = data["plate_box"]
+                    resultCanvas.beginPath();
+                    resultCanvas.lineWidth = "5";
+                    resultCanvas.strokeStyle = "#ffcc00";
+                    resultCanvas.rect(plateBox[0], plateBox[1], plateBox[2]-plateBox[0], plateBox[3]-plateBox[1])
+                    resultCanvas.closePath();
+                    resultCanvas.stroke();
+                } catch (e) {
+                    
+                }
+                // }
+            })
+        })
+
+
+
+        function sendImageData(data) {
+            console.log("EMIT")
+
+            data = data.replace("data:image/png;base64,", "").replace("data:image/jpeg;base64,", "")
+            socket.emit('upload', {
+                'img': data,
+                'seq_number': seqNumber,
+            })
+
+            seqNumber += 1
+        }
+
+
+        const video = document.getElementById('video');
+        // const capturedImage = document.getElementById('capturedImage');
+        var seqNumber = 0
+
+        function startCapture() {
+            if (!navigator.mediaDevices.getUserMedia)
+                return
+
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    setInterval(captureImage, CAPTURE_INTERVAL_MS); // Adjust the interval time (5000 milliseconds = 5 seconds)
+                })
+                .catch(error => {
+                    console.error('Error accessing the camera:', error);
+                });
+        }
+
+
+        function captureImage() {
+            console.log("CAPTURE")
+
+            
+            canvas.drawImage(video, 0, 0, canvasRoot.width, canvasRoot.height);
+            
+            imgData = canvas.getImageData(0, 0, canvasRoot.width, canvasRoot.height);
+            imgDataQueue.push([seqNumber, imgData])
+            
+            // Convert the captured image to a base64 string
+            const base64String = canvasRoot.toDataURL('image/jpeg');
+
+            // // Set the base64 string as the source of the image element
+            // capturedImage.src = base64String;
+
+            // // Display the captured image
+            // capturedImage.style.display = 'block';
+
+            sendImageData(base64String)
+        }
+
+        // Start capturing images when the page loads
+        startCapture();
+    </script>
+</html>
