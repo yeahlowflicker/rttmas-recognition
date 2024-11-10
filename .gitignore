@@ -2,6 +2,11 @@ __pycache__/
 venv/
 
 /src/static
+/src/test_images
+/src/recognition_old
 /src/tmp
 /src/weights
 *.pt
+
+*.png
+*.jpg

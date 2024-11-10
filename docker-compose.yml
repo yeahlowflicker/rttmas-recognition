@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+
+  rttmas:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rttmas_recognition
+    restart: always
+
+
+networks:
+  default:
+    external:
+      name: rttmas_network
